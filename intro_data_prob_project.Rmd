@@ -1,0 +1,393 @@
+---
+title: "Exploring the BRFSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+```
+
+### Load data
+
+```{r load-data}
+load("brfss2013.RData")
+```
+
+* * *
+
+## Part 1: Data
+BRFSS collects data based on 50 states about U.S. residents about their health-related risk behaviors, chronic health conditions, and use of preventive services. The data contains 50 states, 400,000 interviews and three U.S. territories each year.
+
+The BRFSS was initiated in 1984, with 15 states collecting surveillance data on risk behaviors through monthly telephone interviews. BRFSS conducts both landline telephone and cellular telephone-based on survey. And in order to conduct the BRFSS telephone survey, interviewers randomly selected adults in household and conduct data. For the cellular telephone questionnaire, interviewers collect data from an adult who participates by using a cellular telephone and resides in a private residence and college housing. And the home telephone numbers are obtain through random-digit dialing. From these, we know that the interviewers randomly selected sample from the whole population, so we can conduct generalizability. This is because random sampling was acted on the total population through landline and cellular telephone.
+
+Also, it will cause some bias. First, it may come from non-response bias, that is some residents did not respond to the survey. Second is convenience bias, some citizens who do not have a cell phone or they have no access to the landline, so they cannot be surveyed.
+
+And we cannot get causation between variables since this survey is an observational study, so researchers have not randomly assigned our interviewers into two groups.
+* * *
+
+## Part 2: Research questions
+
+**Research quesion 1:**
+In life, everyone experiences anxiety from time to time. Anxiety is one of the most popular social emotions nowadays. People may feel anxious for different reasons. And for adults, since most of them are living under pressure due to high life expense and their responsibilities to feed family, they are more likely to be anxious. The primary cost nowadays is renting a house, and people are likely to pay expensive rent due to rapidly rising rents. Therefore, in the first question, I would like to investigate at different income levels, whether having children may have some effects on feeling anxious. That is to say, for the different levels of income, are parents with children more anxious when paying rent? For example, are people with high income and children are less likely to feel anxious compared with people with low income but have no children?
+
+After going through the dataset, some metrics are useful for dealing with this question. The data about income level is `income2` in the Main Survey-Section 8 -Demographics. The data about the number of children in the household is stored in `children` of Main Survey-Section 8-Demographics. The data about times past months worried/stressed about having enough money to pay your rent is stored in `scntmony` of Optional Module 19-Social Context.
+
+**Research question 2:**
+From the World Health Organization, in 2019, an estimated 38.2 million children under the age of 5 years were overweight or obese. And the worldwide prevalence of obesity nearly tripled between 1975 and 2016. The prevalence of obesity has increased worldwide in the past few years, reaching pandemic levels. However, it is not a good thing. From nature reviews endocrinology, obesity means increasing the risk of diseases. Nowadays, more and more people care about health and start to pay attention to their eating habits. For example, some people are advocating eating green vegetables. Eating vegetables is a very healthy habit, which is rich in vitamins and fiber.  In the second question, we investigate the differences in vegetable consumption between all BMI categories, and I would like to examine the relationship between eating vegetables.
+
+**Research question 3:**
+For this question, I want to calculate the health care coverage rate of different states, and get the health care coverage rate of different states, which state does the best health care, which state does not do well.
+
+
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+
+**Research question 1:**
+As a first question, we are interested in the relationship between children in their households, income level, and whether they are anxious when paying rent or not. To achieve this, we familiarize ourselves with the variables `income2`, `children` and `scntmony` . First, we check the codebook, then we explore the data.
+
+First, we can subset the columns of interest and how the data looks like. We can sue the pacakge dplyr chain to select all variables we are interested in and use  `str()` to take a closer look at them.
+
+```{r}
+brfss2013 %>% 
+  select(income2,children,scntmony) %>% str()
+```
+
+From the result, we know that the `income2` is a factor, and `children` is an integer, and the `scntomy` is a factor.
+
+An easy way of investigating different income levels is to see how many times each level of is to use the `group_by()` function along with the `summarise()` command:
+
+```{r}
+brfss2013 %>%
+  select(income2) %>%
+  group_by(income2) %>%
+  summarise(n = n())
+```
+From the result, the income2 contains many NA. As taught before, NA (Not Available) is used to indicate blank entries -- those observations for which there is no data recorded. These missing values which have no help for our analysis, then we use the 'filter' to exclude these observations from the data then to count.
+
+```{r}
+brfss2013 %>%
+  select(income2) %>%
+  filter(!is.na(income2)) %>%
+  group_by(income2) %>%
+  summarise(n = n())
+```
+We conclude that 75,000 is a dividing line of income levels. I am interested that is there more people earning 75,000 or more people earning less than this number. Therefore, I use the 'if-else' function to make an evaluation, and store it in a new variable called 'income_degree'. Here, This requires creating a new variable with the `mutate()` function.
+
+```{r}
+brfss2013 <- brfss2013 %>%
+  filter(!is.na(income2)) %>%
+  mutate(income_degree = ifelse(income2 == "$75,000 or more","more than 75000","less than 75000"))
+```
+
+Then I want to visualize the outcome. Here I use the `ggplot()` function, since the income_degree is also a categorical variable, we can draw bar plot, and the y-axis means the number of different income levels.
+
+```{r}
+ggplot(data=brfss2013,aes(x=income_degree))+geom_bar()
+```
+
+We can also similarly view the levels and number of occurances of these levels in the  `children` variable: 
+
+```{r}
+brfss2013 %>%
+  select(children) %>%
+  group_by(children) %>%
+  summarise(n = n())
+```
+
+If we examine the categories in `children` we can see that this variable has levels such as `NA`. We also need to filter missing values.
+
+```{r}
+brfss2013 %>%
+  select(children) %>%
+  filter(!is.na(children)) %>%
+  group_by(children) %>%
+  summarise(n = n())
+```
+
+For the question we care about, we want to whether having children or not may have an affect on feeling anxious. Hence an straightforward approach would be to first determine whether a household has children or not. This requires creating a new variable with the `mutate()` function.
+
+```{r}
+brfss2013 <- brfss2013 %>%
+  mutate(children_having = ifelse(children == 0,"no","yes"))
+```
+
+This creates a new variable named `children_having` that has the value `"no"` if `children` is equal to 0, and `"yes"` otherwise.
+
+We can again check our work by exploring the groupings in a View:
+
+```{r}
+brfss2013 %>%
+  filter(!is.na(children_having)) %>%
+  group_by(income2,children_having) %>%
+  summarise(n=n())
+```
+
+Next procedure is dealing with the different anxiety degree due to paying rent. We also similarly view the levels and number of occurances of these levels in the  `scntmony` variable:
+
+```{r}
+brfss2013 %>%
+  select(scntmony) %>%
+  group_by(scntmony) %>%
+  summarise(n = n())
+```
+
+If we examine the categories in `scntmony` we can see that this variable has levels such as `NA`. We also need to filter missing values.
+
+```{r}
+brfss2013 %>%
+  select(scntmony) %>%
+  filter(!is.na(scntmony)) %>%
+  group_by(scntmony) %>%
+  summarise(n = n())
+```
+
+Then we can again check our work by exploring the groupings in a View:
+
+```{r}
+brfss2013 %>%
+  group_by(income2,children_having,scntmony) %>%
+  summarise(n=n())
+```
+```{r}
+brfss2013 %>%
+  group_by(income_degree,children_having,scntmony) %>%
+  summarise(n=n())
+```
+
+The results contain some NA value, we can exclude these values with filter function.
+
+```{r}
+brfss2013 %>%
+  filter(!is.na(income_degree)) %>%
+  filter(!is.na(children_having)) %>%
+  filter(!is.na(scntmony)) %>%
+  group_by(income_degree,children_having,scntmony) %>%
+  summarise(n=n())
+```
+
+```{r}
+brfss2013 %>%
+  filter(!is.na(scntmony)) %>%
+  filter(income_degree == 'less than 75000',children_having == 'no') %>%
+  group_by(scntmony) %>%
+  summarise(n = n()) %>%
+  mutate(scntmony_Rate = n/sum(n))
+```
+```{r}
+brfss2013 %>%
+  filter(!is.na(scntmony)) %>%
+  filter(income_degree == 'more than 75000',children_having == 'yes') %>%
+  group_by(scntmony) %>%
+  summarise(n = n()) %>%
+  mutate(scntmony_rate = n/sum(n))
+```
+
+From the results, we see the rate of feeling anxious in the group which earns less than 75,000 but does not have children is higher than the rate which earns more than 75000 and has children. Therefore, there is a connection between having children, salary, and feeling anxious. However, we cannot conclude a causal relationship.
+
+**Research question 2:**
+For this question, we are interested in the relationship between obesity and how many times people ate dark green vegetables. Here we need to variables, one is to define this person obesity or not and the other is the frequency of eating vegetables. After reading carefully the dataset, I find three variables may useful `_bmi5cat` and `fvgreen`. `_bmi5cat` is the variable means Computed Body Mass Index Categories, and `fvgreen` means how many times did you eat dark green vegetables. The body mass index is very useful. It is a commonly used international standard to measure the body's fatness and health. We can define people's fatness by calculating BMI with heights and weights. To achieve this, we familiarize ourselves with the variables `_bmi5cat`and `fvgreen`.First, we check the codebook, then we explore the data.
+
+R has rules about what variable names are legal (e.g. no spaces, starting with a letter) and when data is loaded, R will often fix variable names to make them legal. This happened to the `_bmi5cat` at the time of loading the data.
+
+We can search the names for a fragment of the name by using the `grep("FRAGMENT", variable, value = TRUE)` command, which in this case might be:
+
+```{r}
+grep("bmi5cat", names(brfss2013), value = TRUE)
+```
+
+We can now confirm that the variable is called `X_bmi5cat`, so that is how we should be referring to it.
+
+```{r}
+brfss2013 %>%
+  select(X_bmi5cat,fvgreen) %>%
+  str()
+```
+
+From the codebook note, for answering how many times did you eat dark green vegetables that interviewer can answer times per day, week, or month. And the first number denotes the day, week or month. The remaining numbers are the counts of times. 
+We want to extract the first number to category the different frequencies: day, week and month. We can generate a new variable called "fre_green".
+
+```{r}
+brfss2013 <- brfss2013 %>%
+  mutate(fre_green = ifelse(fvgreen < 200,"per day",ifelse(fvgreen < 300,"per week","per month")))
+```
+
+Also, we can get the specific numbers about counts of times. For the remaining two digits are the days. Here we can also generate a new variable called "greendays".
+
+```{r}
+brfss2013 <- brfss2013 %>%
+  mutate(greendays = fvgreen - (fvgreen %/% 100)*100)
+```
+
+An easy way of tabulating these data to see how many times each level of is to use the `group_by()` function along with the `summarise()` command:
+
+```{r}
+brfss2013 %>%
+  filter(!is.na(fvgreen)) %>%
+  group_by(fre_green,greendays) %>%
+  summarise(n = n())
+  
+```
+
+For this variable, we can also draw a bar plot to visualize how often people eat vegetables. The x-axis is the greendays we just calculated, and for bar plot we can use the fill function to divide the frequency of eating vegetables.
+
+```{r}
+ggplot(brfss2013,aes(x = greendays))+geom_bar(aes(fill = fre_green))
+```
+Then, from the codebook, `fvgreen` the first digit denotes days per day (1) or days per week (2) or days per month (3), and the remaining digits indicate the count of times. We need to transform this variable to the number of times, over the last 30 days. Here we also we the mutate to create a new variable called `fvgreen_scaled`.
+
+```{r}
+brfss2013 <- brfss2013 %>%
+  mutate(fvgreen_scaled = round(ifelse((fvgreen >= 101) & (fvgreen <= 199),(fvgreen - 100) * 30 ,ifelse((fvgreen >= 201) & (fvgreen <= 299),(fvgreen - 200)/7 * 30,ifelse((fvgreen >= 301) & (fvgreen <= 399),fvgreen-300,fvgreen)))),0)
+```
+
+We can also check the outcome by using group by and summarise function.
+```{r}
+brfss2013 %>%
+  filter(!is.na(fvgreen_scaled)) %>%
+  group_by(fvgreen_scaled) %>%
+  summarise(n = n())
+```
+
+We can also similarly view the levels and number of occurances of these levels in the  `X_bmi5cat` variable:
+
+```{r}
+brfss2013  %>%
+  filter(!is.na(X_bmi5cat)) %>%
+  group_by(X_bmi5cat) %>%
+  summarise(n = n())
+```
+To view and summarize the variables we just calculated.
+```{r}
+brfss2013 %>%
+  group_by(fvgreen_scaled,X_bmi5cat) %>%
+  summarise(n = n())
+```
+
+If we filter all missing values:
+```{r}
+brfss2013 %>%
+  filter(!is.na(fvgreen_scaled)) %>%
+  filter(!is.na(X_bmi5cat)) %>%
+  group_by(fvgreen_scaled,X_bmi5cat) %>%
+  summarise(n = n())
+```
+
+Now to address our research question, we compare summary statistics about `fvgreen` for different BMI.
+
+```{r}
+brfss2013 %>%
+  filter(!is.na(fvgreen_scaled)) %>%
+  filter(!is.na(X_bmi5cat)) %>%
+  group_by(X_bmi5cat) %>%
+  summarise(fvgreenmean = mean(fvgreen_scaled), fvgreenmedian = median(fvgreen_scaled), fvgreensd = sd(fvgreen_scaled), fvgreenmax = max(fvgreen_scaled), fvgreenmin = min(fvgreen_scaled))
+```
+
+From the result, comparing the fvgreenmean, we conclude that people who are overweight and obese tend to consume less green vegetables compared with the people who are underweight and normal weight. And the normal weight population eat the most times of vegetables. Therefore, it is necessary for us to consume some dark green vegetables such as broccoli, romaine, chard, collard greens or spinach to keep fitness and avoid obesity.
+
+**Research question 3:**
+In question 3, we want to investigate the health care coverage. From the codebook provided, there are some variables may be helpful. For different states, all states are stored in `_state` variable. And as for the health care coverage, `hlthpln1` is used to test whether people have any kind of health care coverage, including health insurance, prepaid plans ,etc.
+
+At first, we noticed the name of `_state` cannot be read in R, therefore, we need search the names for a fragment of the name by using the `grep("FRAGMENT", variable, value = TRUE)` command, which in this case might be: 
+
+```{r}
+grep("state",names(brfss2013),value = TRUE)
+```
+
+Here comes out three variables. What we need is `X_state`.
+
+Then, we need check all the variables by using `str()`.
+
+```{r}
+brfss2013 %>%
+  select(X_state,hlthpln1) %>%
+  str()
+```
+
+Second, we can filter all the missing values, and to summarize the occurances of each level with `group_by()` and `summarise()`.
+
+```{r}
+brfss2013 %>%
+  filter(!is.na(X_state)) %>%
+  filter(!is.na(hlthpln1)) %>%
+  group_by(X_state,hlthpln1) %>%
+  summarise(n = n())
+```
+
+Third, since we want to investigate the health care coverage rate in different states. We can use the mutate function to generate a new variable called `coverage_rate` to see the different proportion of whether citizens have access to health care or not in different states.
+
+```{r}
+  coverage <- brfss2013 %>%
+  filter(!is.na(hlthpln1)) %>%
+  group_by(X_state,hlthpln1) %>%
+  summarise(n=n()) %>%
+  mutate(coverage_rate = n/sum(n))
+```
+
+Finally, `arrange` can help us find out which state has the highest health care coverage rate.
+
+```{r}
+ coverage %>%
+  arrange(desc(coverage_rate))
+```
+From the result, we can see Massachusetts has the highest health care coverage, and the rate is 0.9586. And Columbia and Puerto Rico also have high coverage rate, ranking 2nd and 3rd. 
+
+Next, inspired by some projects I done by using Tableau before, drawing a map to show health care coverage rate in different states is a good way for us understanding the health care development in all states. Here we will us `maps` package. We need to download and load the package we need.
+
+```{r}
+library(maps)
+```
+
+Then we use `map_data`to convert the map data into a data frame, which can later be merged with our data through the `merge()` operation, and finally draw a contour map.
+
+```{r}
+states <- map_data("state")
+coverage <- coverage %>%
+  mutate(region = tolower(X_state))
+health_coverage_map <- merge(states,coverage, by="region")
+```
+
+Last step is using the `ggplot` operation to draw the map, there are a lot of [parameters settings involved here.
+
+```{r}
+ggplot(health_coverage_map,aes(x = long,y = lat,group = group, fill = coverage_rate))+geom_polygon(color = 'white') +ggtitle('Health Care Coverage Rate in the U.S.') +scale_fill_viridis_c(option = 'A')
+```
+From the results, we know that even though we drew the map, stating the different health care coverage rates in the U.S., but there are no texts about states' names, causing confusion. Here we create a new variable called  `snames` to store states. And the variable contains the midpoints of states which are better approximated by the mean of range.
+ 
+```{r}
+snames <-aggregate(cbind(long,lat) ~ region,data = health_coverage_map,
+                   FUN = function(x)mean(range(x)))
+```
+
+Finally, we use a map to coordinate system that respects the coverage rate as well as states.
+```{r}
+library(RColorBrewer)
+```
+
+```{r}
+myPallette <- colorRampPalette(rev(brewer.pal(11,"Spectral")))
+```
+
+```{r}
+ggplot(health_coverage_map,aes(long,lat)) +
+  geom_polygon(aes(group = group,fill = coverage_rate),color = 'white')+
+  geom_text(data = snames,aes(long,lat,label = region),size=3)+
+  ggtitle('Health Care Coverage Rate in the U.S.') +
+  scale_color_gradientn(colours = myPallette(100),limits = c(0,1)) +
+  theme(legend.position = c(1, 0), legend.justification = c(1, 0))
+```
+
+From this map, we know that some states such as montana, arkansas, north carolina has the lower coverage rate. Most of the states have higher coverage rate, 
+
